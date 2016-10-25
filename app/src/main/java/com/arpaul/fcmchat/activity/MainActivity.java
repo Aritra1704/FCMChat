@@ -1,12 +1,10 @@
 package com.arpaul.fcmchat.activity;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
@@ -15,24 +13,24 @@ import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
-import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.arpaul.fcmchat.R;
-import com.arpaul.fcmchat.adapter.ChatMessageAdapter;
-import com.arpaul.fcmchat.common.AppConstants;
 import com.arpaul.fcmchat.common.AppPreference;
 import com.arpaul.fcmchat.dataObjects.FriendlyMessage;
-import com.arpaul.fcmchat.dataObjects.MessageDO;
 import com.arpaul.utilitieslib.StringUtils;
-import com.arpaul.utilitieslib.UnCaughtException;
 import com.bumptech.glide.Glide;
 import com.firebase.ui.database.FirebaseRecyclerAdapter;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.appinvite.AppInviteInvitation;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -41,86 +39,66 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
-/**
- * Created by Aritra on 24-10-2016.
- */
+public class MainActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
 
-public class ChatActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
+public static class MessageViewHolder extends RecyclerView.ViewHolder {
+    public TextView messageTextView;
+    public TextView messengerTextView;
+    public CircleImageView messengerImageView;
 
-    //https://firebase.google.com/docs/cloud-messaging/android/upstream?authuser=2
-
-    public static class MessageViewHolder extends RecyclerView.ViewHolder {
-        public TextView messageTextView;
-        public TextView messengerTextView;
-        public CircleImageView messengerImageView;
-
-        public MessageViewHolder(View v) {
-            super(v);
-            messageTextView = (TextView) itemView.findViewById(R.id.messageTextView);
-            messengerTextView = (TextView) itemView.findViewById(R.id.messengerTextView);
-            messengerImageView = (CircleImageView) itemView.findViewById(R.id.messengerImageView);
-        }
+    public MessageViewHolder(View v) {
+        super(v);
+        messageTextView = (TextView) itemView.findViewById(R.id.messageTextView);
+        messengerTextView = (TextView) itemView.findViewById(R.id.messengerTextView);
+        messengerImageView = (CircleImageView) itemView.findViewById(R.id.messengerImageView);
     }
+}
 
-    private static final String TAG = "ChatActivity";
+    private static final String TAG = "MainActivity";
     public static final String MESSAGES_CHILD = "messages";
-    private RecyclerView rvChatMessages;
-    private EditText edtMessage;
-    private ProgressBar mProgressBar;
-    private ImageView btnSend;
-    private ChatMessageAdapter adapter;
-//    private ArrayList<MessageDO> arrChat = null;
-//    private FirebaseAuth mFirebaseAuth;
-    private FirebaseUser mFirebaseUser;
+    private static final int REQUEST_INVITE = 1;
+    public static final int DEFAULT_MSG_LENGTH_LIMIT = 10;
+    public static final String ANONYMOUS = "anonymous";
+    private static final String MESSAGE_SENT_EVENT = "message_sent";
     private String mUsername;
     private String mPhotoUrl;
-    private GoogleApiClient mGoogleApiClient;
+    private SharedPreferences mSharedPreferences;
+
+    private Button mSendButton;
+    private RecyclerView mMessageRecyclerView;
     private LinearLayoutManager mLinearLayoutManager;
-    private DatabaseReference mFirebaseDatabaseReference;
     private FirebaseRecyclerAdapter<FriendlyMessage, MessageViewHolder> mFirebaseAdapter;
+    private ProgressBar mProgressBar;
+    private DatabaseReference mFirebaseDatabaseReference;
+    private FirebaseAuth mFirebaseAuth;
+    private FirebaseUser mFirebaseUser;
     private FirebaseAnalytics mFirebaseAnalytics;
+    private EditText mMessageEditText;
+    private AdView mAdView;
     private FirebaseRemoteConfig mFirebaseRemoteConfig;
-    public static final int DEFAULT_MSG_LENGTH_LIMIT = 10;
-    private static final String MESSAGE_SENT_EVENT = "message_sent";
+    private GoogleApiClient mGoogleApiClient;
 
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        Thread.setDefaultUncaughtExceptionHandler(new UnCaughtException(ChatActivity.this,"aritra1704@gmail.com",getString(R.string.app_name)));
-        this.requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-        setContentView(R.layout.activity_chat);
-
-        initialiseControls();
-
-        bindControls();
-    }
-
-    private void bindControls(){
-//        arrChat = new ArrayList<>();
-
-//        btnSend.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//
-//            }
-//        });
+        setContentView(R.layout.activity_main);
+        mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        mUsername = ANONYMOUS;
 
         // Initialize Firebase Auth
-//        mFirebaseAuth = FirebaseAuth.getInstance();
-        mFirebaseUser = AppConstants.mFirebaseAuth.getCurrentUser();
+        mFirebaseAuth = FirebaseAuth.getInstance();
+        mFirebaseUser = mFirebaseAuth.getCurrentUser();
 
         if (mFirebaseUser == null) {
             // Not signed in, launch the Sign In activity
@@ -137,6 +115,11 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
                 .addApi(Auth.GOOGLE_SIGN_IN_API)
                 .build();
 
+        mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
+        mMessageRecyclerView = (RecyclerView) findViewById(R.id.messageRecyclerView);
+        mLinearLayoutManager = new LinearLayoutManager(this);
+        mLinearLayoutManager.setStackFromEnd(true);
+
         mFirebaseDatabaseReference = FirebaseDatabase.getInstance().getReference();
         mFirebaseAdapter = new FirebaseRecyclerAdapter<FriendlyMessage, MessageViewHolder>(
                 FriendlyMessage.class,
@@ -150,10 +133,10 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
                 viewHolder.messageTextView.setText(friendlyMessage.getText());
                 viewHolder.messengerTextView.setText(friendlyMessage.getName());
                 if (friendlyMessage.getPhotoUrl() == null) {
-                    viewHolder.messengerImageView.setImageDrawable(ContextCompat.getDrawable(ChatActivity.this,
+                    viewHolder.messengerImageView.setImageDrawable(ContextCompat.getDrawable(MainActivity.this,
                             R.drawable.ic_account_circle_black_36dp));
                 } else {
-                    Glide.with(ChatActivity.this)
+                    Glide.with(MainActivity.this)
                             .load(friendlyMessage.getPhotoUrl())
                             .into(viewHolder.messengerImageView);
                 }
@@ -170,10 +153,18 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
                 // to the bottom of the list to show the newly added message.
                 if (lastVisiblePosition == -1 ||
                         (positionStart >= (friendlyMessageCount - 1) && lastVisiblePosition == (positionStart - 1))) {
-                    rvChatMessages.scrollToPosition(positionStart);
+                    mMessageRecyclerView.scrollToPosition(positionStart);
                 }
             }
         });
+
+        mMessageRecyclerView.setLayoutManager(mLinearLayoutManager);
+        mMessageRecyclerView.setAdapter(mFirebaseAdapter);
+
+        // Initialize and request AdMob ad.
+        mAdView = (AdView) findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
 
         // Initialize Firebase Measurement.
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
@@ -199,9 +190,10 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
         // Fetch remote config.
         fetchConfig();
 
-        String limit = new AppPreference(ChatActivity.this).getStringFromPreference(AppPreference.FRIENDLY_MSG_LENGTH, "" + DEFAULT_MSG_LENGTH_LIMIT);
-        edtMessage.setFilters(new InputFilter[]{new InputFilter.LengthFilter(StringUtils.getInt(limit))});
-        edtMessage.addTextChangedListener(new TextWatcher() {
+        mMessageEditText = (EditText) findViewById(R.id.messageEditText);
+        String limit = new AppPreference(MainActivity.this).getStringFromPreference(AppPreference.FRIENDLY_MSG_LENGTH, "" + DEFAULT_MSG_LENGTH_LIMIT);
+        mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(StringUtils.getInt(limit))});
+        mMessageEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
             }
@@ -209,9 +201,9 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
             @Override
             public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
                 if (charSequence.toString().trim().length() > 0) {
-                    btnSend.setEnabled(true);
+                    mSendButton.setEnabled(true);
                 } else {
-                    btnSend.setEnabled(false);
+                    mSendButton.setEnabled(false);
                 }
             }
 
@@ -220,29 +212,89 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
             }
         });
 
-        btnSend.setOnClickListener(new View.OnClickListener() {
+        mSendButton = (Button) findViewById(R.id.sendButton);
+        mSendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                FriendlyMessage friendlyMessage = new FriendlyMessage(edtMessage.getText().toString(), mUsername,
+                FriendlyMessage friendlyMessage = new FriendlyMessage(mMessageEditText.getText().toString(), mUsername,
                         mPhotoUrl);
                 mFirebaseDatabaseReference.child(MESSAGES_CHILD).push().setValue(friendlyMessage);
-                edtMessage.setText("");
+                mMessageEditText.setText("");
                 mFirebaseAnalytics.logEvent(MESSAGE_SENT_EVENT, null);
             }
         });
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
+    public void onPause() {
+        if (mAdView != null) {
+            mAdView.pause();
+        }
+        super.onPause();
+    }
 
-        try {
-            registerReceiver(br_REFRESH, new IntentFilter(AppConstants.ACTION_REFRESH));
-        } catch(Exception ex) {
-            ex.printStackTrace();
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (mAdView != null) {
+            mAdView.resume();
         }
     }
 
+    @Override
+    public void onDestroy() {
+        if (mAdView != null) {
+            mAdView.destroy();
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.invite_menu:
+                sendInvitation();
+                return true;
+            case R.id.crash_menu:
+                FirebaseCrash.logcat(Log.ERROR, TAG, "crash caused");
+                causeCrash();
+                return true;
+            case R.id.sign_out_menu:
+                mFirebaseAuth.signOut();
+                Auth.GoogleSignInApi.signOut(mGoogleApiClient);
+                mFirebaseUser = null;
+                mUsername = ANONYMOUS;
+                mPhotoUrl = null;
+                startActivity(new Intent(this, SignInActivity.class));
+                return true;
+            case R.id.fresh_config_menu:
+                fetchConfig();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void causeCrash() {
+        throw new NullPointerException("Fake null pointer exception");
+    }
+
+    private void sendInvitation() {
+        Intent intent = new AppInviteInvitation.IntentBuilder(getString(R.string.invitation_title))
+                .setMessage(getString(R.string.invitation_message))
+                .setCallToActionText(getString(R.string.invitation_cta))
+                .build();
+        startActivityForResult(intent, REQUEST_INVITE);
+    }
+
+    // Fetch the config to determine the allowed length of messages.
     public void fetchConfig() {
         long cacheExpiration = 3600; // 1 hour in seconds
         // If developer mode is enabled reduce cacheExpiration to 0 so that each fetch goes to the
@@ -269,54 +321,44 @@ public class ChatActivity extends AppCompatActivity implements GoogleApiClient.O
                 });
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        Log.d(TAG, "onActivityResult: requestCode=" + requestCode + ", resultCode=" + resultCode);
+
+        if (requestCode == REQUEST_INVITE) {
+            if (resultCode == RESULT_OK) {
+                // Use Firebase Measurement to log that invitation was sent.
+                Bundle payload = new Bundle();
+                payload.putString(FirebaseAnalytics.Param.VALUE, "inv_sent");
+
+                // Check how many invitations were sent and log.
+                String[] ids = AppInviteInvitation.getInvitationIds(resultCode, data);
+                Log.d(TAG, "Invitations sent: " + ids.length);
+            } else {
+                // Use Firebase Measurement to log that invitation was not sent
+                Bundle payload = new Bundle();
+                payload.putString(FirebaseAnalytics.Param.VALUE, "inv_not_sent");
+                mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SHARE, payload);
+
+                // Sending failed or it was canceled, show failure message to the user
+                Log.d(TAG, "Failed to send invitation.");
+            }
+        }
+    }
+
     /**
      * Apply retrieved length limit to edit text field. This result may be fresh from the server or it may be from
      * cached values.
      */
     private void applyRetrievedLengthLimit() {
         Long friendly_msg_length = mFirebaseRemoteConfig.getLong("friendly_msg_length");
-        edtMessage.setFilters(new InputFilter[]{new InputFilter.LengthFilter(friendly_msg_length.intValue())});
+        mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(friendly_msg_length.intValue())});
         Log.d(TAG, "FML is: " + friendly_msg_length);
     }
 
-    private BroadcastReceiver br_REFRESH = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            MessageDO objMessage = new MessageDO();
-            objMessage.messageSender = intent.getStringExtra(MessageDO.SENDER);
-            objMessage.messageBody = intent.getStringExtra(MessageDO.BODY);
-
-//            arrChat.add(objMessage);
-//            adapter.refresh(arrChat);
-        }
-    };
-
     @Override
-    protected void onStop() {
-        super.onStop();
-
-        try {
-            unregisterReceiver(br_REFRESH);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+    public void onConnectionFailed(ConnectionResult connectionResult) {
         Log.d(TAG, "onConnectionFailed:" + connectionResult);
-    }
-
-    private void initialiseControls(){
-        rvChatMessages = (RecyclerView) findViewById(R.id.rvChatMessages);
-        adapter = new ChatMessageAdapter(ChatActivity.this, new ArrayList<MessageDO>());
-        mLinearLayoutManager = new LinearLayoutManager(this);
-        mLinearLayoutManager.setStackFromEnd(true);
-        rvChatMessages.setLayoutManager(mLinearLayoutManager);
-        rvChatMessages.setAdapter(adapter);
-
-        edtMessage = (EditText) findViewById(R.id.edtMessage);
-        btnSend = (ImageView) findViewById(R.id.btnSend);
-        mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
     }
 }

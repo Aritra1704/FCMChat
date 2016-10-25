@@ -15,6 +15,10 @@
     <string name="desc_auth_code_activity">Demonstrate retrieving an auth code for authorizing your server.</string>
     <string name="name_auth_code_activity">ServerAuthCodeActivity</string>
 
+    <string name="invitation_message">Please join me for a friendly chat</string>
+    <string name="invitation_cta">Call to action</string>
+    <string name="invitation_title">Friendly Chat Invite</string>
+
     <string name="title_text">Google Sign-In\nQuickstart</string>
 
     <string name="signed_in">Signed in</string>
@@ -29,6 +33,9 @@
     <string name="loading">Loading…</string>
     <string name="auth_code_fmt">Auth Code: %s</string>
     <string name="id_token_fmt">ID Token: %s</string>
+    <string name="fresh_config">Fresh Config</string>
+    <string name="invite_menu_label">Invite</string>
+    <string name="cause_crash">Cause Crash</string>
 
     <!-- Google Play Services error for Toast -->
     <string name="play_services_error_fmt">Google Play Services Error: %i</string>
@@ -43,4 +50,6 @@
     <string name="contacts_permission_rationale">Contacts access is needed in order to retrieve your email address.</string>
 
     <string name="server_client_id">API_KEY</string>
+
+    <string name="banner_ad_unit_id" translatable="false">API_KEY</string>
 </resources>

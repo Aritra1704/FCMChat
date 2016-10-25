@@ -12,10 +12,14 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.Window;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.arpaul.fcmchat.R;
+import com.arpaul.fcmchat.common.AppConstants;
+import com.arpaul.utilitieslib.LogUtils;
+import com.arpaul.utilitieslib.UnCaughtException;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -31,6 +35,7 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 
 public class SignInActivity extends AppCompatActivity implements
@@ -39,6 +44,7 @@ public class SignInActivity extends AppCompatActivity implements
 
     //https://developers.google.com/identity/sign-in/android/start
     //https://developers.google.com/identity/sign-in/android/
+    //https://groups.google.com/forum/#!topic/firebase-talk/d9MHQjAxFBY
 
     private static final String TAG = "SignInActivity";
     private static final int RC_SIGN_IN = 9001;
@@ -47,11 +53,15 @@ public class SignInActivity extends AppCompatActivity implements
     private TextView mStatusTextView;
     private ProgressDialog mProgressDialog;
     private FloatingActionButton fab;
-    private FirebaseAuth mFirebaseAuth;
+//    private FirebaseAuth mFirebaseAuth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        Thread.setDefaultUncaughtExceptionHandler(new UnCaughtException(SignInActivity.this,"aritra1704@gmail.com",getString(R.string.app_name)));
+        this.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
         setContentView(R.layout.activity_signin);
 
         initialiseControls();
@@ -64,6 +74,7 @@ public class SignInActivity extends AppCompatActivity implements
         // Configure sign-in to request the user's ID, email address, and basic
         // profile. ID and basic profile are included in DEFAULT_SIGN_IN.
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.server_client_id))
                 .requestEmail()
                 .build();
         // [END configure_signin]
@@ -75,6 +86,10 @@ public class SignInActivity extends AppCompatActivity implements
                 .enableAutoManage(this , this )
                 .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
                 .build();
+
+        // Initialize FirebaseAuth
+        AppConstants.mFirebaseAuth = FirebaseAuth.getInstance();
+
         // [END build_client]
 
         // [START customize_button]
@@ -93,6 +108,11 @@ public class SignInActivity extends AppCompatActivity implements
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                FirebaseUser mFirebaseUser = AppConstants.mFirebaseAuth.getCurrentUser();
+                if (mFirebaseUser == null)
+                    LogUtils.debugLog("UsserLog", "null");
+                else
+                    LogUtils.debugLog("UsserLog", mFirebaseUser.getDisplayName());
                 startActivity(new Intent(SignInActivity.this, ChatActivity.class));
             }
         });
@@ -242,7 +262,7 @@ public class SignInActivity extends AppCompatActivity implements
     private void firebaseAuthWithGoogle(GoogleSignInAccount acct) {
         Log.d(TAG, "firebaseAuthWithGoogle:" + acct.getId());
         AuthCredential credential = GoogleAuthProvider.getCredential(acct.getIdToken(), null);
-        mFirebaseAuth.signInWithCredential(credential)
+        AppConstants.mFirebaseAuth.signInWithCredential(credential)
                 .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
